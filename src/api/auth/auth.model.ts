@@ -2,9 +2,10 @@ import { z } from "zod"
 
 export const signupPayloadModel = z.object({
     firstName: z.string().min(3).max(50),
-    lastName: z.string().min(3).max(30).nullable().optional(),
+    lastName: z.string().min(3).max(30).optional(),
     email: z.email(),
-    password: z.string().min(6).max(66)
+    password: z.string().min(6).max(66),
+    role: z.enum(['admin', 'customer', 'seller']).default('customer')
 })
 
 

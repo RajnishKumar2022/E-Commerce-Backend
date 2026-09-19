@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import mongoose, { Model, Document } from "mongoose";
+import mongoose, { Schema, Model, Document } from "mongoose";
 
 enum UserRole {
   User = "customer",
@@ -69,17 +69,16 @@ const userSchema = new mongoose.Schema<IUser>(
 );
 
 userSchema.pre("save", async function (next) {
-  if (!this.isModified("password") || !this.password) return
+  if (!this.isModified("password") || !this.password) return;
   try {
     this.password = await bcrypt.hash(this.password, 12);
-    
   } catch (error) {
     console.log(error);
   }
 });
 
-userSchema.methods.comparePassword = async function (userPassword: string){
-    return await bcrypt.compare(userPassword, this.password)
-}
+userSchema.methods.comparePassword = async function (userPassword: string) {
+  return await bcrypt.compare(userPassword, this.password);
+};
 
 export const User: Model<IUser> = mongoose.model<IUser>("User", userSchema);
