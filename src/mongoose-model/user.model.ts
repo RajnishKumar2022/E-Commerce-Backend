@@ -15,6 +15,7 @@ export interface IUser extends Document {
   emailVerified: boolean;
   isActive: boolean;
   role: UserRole; // Enforces our specific enum types
+  refreshToken: string,
   createdAt: Date;
   updatedAt: Date;
 }
@@ -64,6 +65,9 @@ const userSchema = new mongoose.Schema<IUser>(
       lowercase: true,
       default: UserRole.User,
     },
+    refreshToken: {
+        type: String,
+    }
   },
   { timestamps: true },
 );
