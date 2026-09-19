@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs";
 import mongoose, { Model, Document } from "mongoose";
 
 enum UserRole {
@@ -41,7 +42,7 @@ const userSchema = new mongoose.Schema<IUser>(
       lowercase: true,
       required: true,
       maxlength: 322,
-      unique: true
+      unique: true,
     },
     password: {
       type: String,
@@ -67,5 +68,14 @@ const userSchema = new mongoose.Schema<IUser>(
   { timestamps: true },
 );
 
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password") || !this.password) return
+  try {
+    this.password = await bcrypt.hash(this.password, 12);
+    
+  } catch (error) {
+    console.log(error);
+  }
+});
 
-export const User: Model<IUser> = mongoose.model<IUser>("User", userSchema)
+export const User: Model<IUser> = mongoose.model<IUser>("User", userSchema);
