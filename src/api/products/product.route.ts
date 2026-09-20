@@ -1,6 +1,6 @@
 import express from "express"
 
-export const productRouter = express.Router()
+// export const productRouter = express.Router()
 
-productRouter.post("/register")
-productRouter.post("/login")
+// productRouter.post("/register")
+// productRouter.post("/login")

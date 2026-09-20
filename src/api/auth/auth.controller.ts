@@ -1,6 +1,10 @@
 import type { Request, Response } from "express";
-import { signupPayloadModel } from "./auth.model.js";
+import { signupPayloadModel, signinPayloadModel } from "./auth.model.js";
 import { User } from "../../mongoose-model/user.model.js";
+import {
+  generateAccessToken,
+  generateRefreshToken,
+} from "./auth.middleware.js";
 
 async function registerUser(req: Request, res: Response) {
   const verifiedData = await signupPayloadModel.safeParseAsync(req.body);
@@ -43,3 +47,74 @@ async function registerUser(req: Request, res: Response) {
     });
   }
 }
+
+async function loginUser(req: Request, res: Response) {
+  try {
+    const verifiedData = await signinPayloadModel.safeParseAsync(req.body);
+
+    if (verifiedData.error) {
+      return res.status(422).json({
+        success: false,
+        message: "Please enter body field's data correctly",
+        error: verifiedData.error.issues,
+      });
+    }
+
+    const { email, password } = verifiedData.data;
+
+    const user = await User.findOne({ email });
+
+    if (!user)
+      return res.status(401).json({
+        success: false,
+        message: "Email doesn't exists, please Register",
+      });
+
+    // @ts-ignore
+    const isPasswordCorrect = await user.comparePassword(password);
+
+    if (!isPasswordCorrect) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    const accessToken = generateAccessToken(user.id);
+
+    const refreshToken = generateRefreshToken(String(user._id));
+
+    user.refreshToken = refreshToken;
+    await user.save();
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true, // Prevents client-side JS access (XSS defense)
+      secure: process.env.NODE_ENV === "production", // Only sends over HTTPS in production
+      sameSite: "strict", // Protects against CSRF attacks
+      maxAge: 7 * 24 * 60 * 60 * 1000, // Cookie lifetime in milliseconds (e.g., 7 days)
+    });
+
+    res.cookie("accessToken", accessToken, {
+      httpOnly: true, // Prevents client-side JS access (XSS defense)
+      secure: process.env.NODE_ENV === "production", // Only sends over HTTPS in production
+      sameSite: "strict", // Protects against CSRF attacks
+      maxAge: 15 * 60 * 1000, 
+    });
+
+    return res.status(200).json({
+      message: "Login successful",
+      user: {
+        id: user._id,
+        firstName: user.firstName,
+        email: user.email,
+        role: user.role,
+        accesstoken: accessToken,
+        refreshtoken: refreshToken,
+      },
+    });
+  } catch (error) {
+    console.error("Login Error:", error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal server error" });
+  }
+}
+
+export { registerUser, loginUser };
