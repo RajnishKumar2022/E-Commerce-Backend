@@ -13,3 +13,8 @@ export const signinPayloadModel = z.object({
     email: z.email(),
     password: z.string().min(6).max(66)
 })
+
+export const addToCartPayloadModel = z.object({
+    quantity: z.number().max(5).min(1).default(1),
+    productId: z.string()
+})
