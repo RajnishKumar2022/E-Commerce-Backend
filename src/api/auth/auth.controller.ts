@@ -6,7 +6,7 @@ import {
   generateRefreshToken,
 } from "./auth.middleware.js";
 import { Product } from "../../mongoose-model/product.model.js";
-
+import { Cart } from "../../mongoose-model/cart.model.js";
 
 export interface CustomRequest extends Request {
   user?: {
@@ -193,25 +193,27 @@ async function getMe(req: Request, res: Response) {
   }
 }
 
-
 // Get all products
 
 async function getAllProducts(req: Request, res: Response) {
   try {
     const products = await Product.find({})
-      .populate('sellerId')    // Replaces ID with full Seller object
-      .populate('categoryId'); // Replaces ID with full Category object
+      .populate("sellerId") // Replaces ID with full Seller object
+      .populate("categoryId"); // Replaces ID with full Category object
 
     return res.status(200).json({
       success: true,
       message: "Successfully fetched all the products",
-      products
-    })
+      products,
+    });
   } catch (error) {
     console.log(error);
     return res
       .status(500)
-      .json({ success: false, message: "Internal server error while fetching Products." });
+      .json({
+        success: false,
+        message: "Internal server error while fetching Products.",
+      });
   }
 }
 
@@ -242,28 +244,27 @@ async function getAllProducts(req: Request, res: Response) {
 //       message: "Successfully fetched all the products",
 //       products
 //     });
-    
+
 //   } catch (error) {
 //     console.error("Error fetching products:", error); // console.error is better practice for errors
-//     return res.status(500).json({ 
-//       success: false, 
-//       message: "Internal server error while fetching Products." 
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error while fetching Products."
 //     });
 //   }
 // }
 
-
-// Below the code is written by me 
+// Below the code is written by me
 // async function getProductById(req: Request, res: Response) {
 //   try {
 //     const { id } = req.params.id
 //     const product = await Product.findById({id}).populate('sellerId').populate('categoryId')
 //     if(!product) return res.status().json({})
-    
+
 //     return res.status(200).json({success: true, message: `Successfully fetched product by given ${id}`, product})
 //   } catch (error) {
 //     console.log(error);
-    
+
 //   }
 // }
 
@@ -271,7 +272,7 @@ async function getAllProducts(req: Request, res: Response) {
 async function getProductById(req: Request, res: Response) {
   try {
     // 1. Fixed destructuring mismatch (req.params se id nikalna)
-    const { id } = req.params; 
+    const { id } = req.params;
 
     // 2. Fixed query format: findById directly expects the raw string/ID, not an object
     const product = await Product.findById(id)
@@ -292,7 +293,6 @@ async function getProductById(req: Request, res: Response) {
       message: `Successfully fetched product by given id: ${id}`,
       product,
     });
-
   } catch (error: any) {
     // 4. Fixed: Catch block must handle errors and return a response to client
     console.error("GetProductById Error:", error);
@@ -303,11 +303,79 @@ async function getProductById(req: Request, res: Response) {
   }
 }
 
-export { 
-  registerUser, 
+// Below is my implementation
+// async function getCartData(req:Request, res: Response){
+//   try {
+//     if (!req.user) {
+//       return res.status(401).json({ success: false, message: "Unauthorized" });
+//     }
+
+//     const user = await User.findById(req.user.userId).select(
+//       "-password -refreshToken",
+//     );
+
+//     if (!user) {
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "User not found" });
+//     }
+
+//     const cartDetails = await Cart.findById(user._id);
+
+//   } catch (error) {
+//     console.log(error);
+
+//   }
+// }
+
+// And this one is AI generated
+
+async function getCartData(req: Request, res: Response) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    // 1. Fixed Query Bug: findById ki jagah findOne use karein kyunki hum userId se search kar rahe hain
+    // 2. Added Populate: .populate() lagane se product ka naam, price, aur images bhi frontend ko mil jayegi
+    const cartDetails = await Cart.findOne({
+      userId: req.user.userId,
+    }).populate({
+      path: "items.productId",
+      select: "productTitle productPrice discountPrice stock images", // Sirf zaroori fields hi fetch karein
+    });
+
+    // 3. Fallback Handling: Agar user ka cart database me abhi tak bana hi nahi hai
+    if (!cartDetails) {
+      return res.status(200).json({
+        success: true,
+        message: "Cart is empty",
+        cart: { items: [] },
+      });
+    }
+
+    // Success response returning fully populated cart details
+    return res.status(200).json({
+      success: true,
+      message: "Cart details fetched successfully",
+      cart: cartDetails,
+    });
+  } catch (error: any) {
+    // 4. Fixed: Catch block me response return karna zaroori hai taaki request hang na ho
+    console.error("GetCartData Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error while fetching cart details",
+    });
+  }
+}
+
+export {
+  registerUser,
   loginUser,
   logoutUser,
   getMe,
   getAllProducts,
-  getProductById
+  getProductById,
+  getCartData,
 };

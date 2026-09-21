@@ -31,7 +31,7 @@ authRouter.get("/products", authController.getAllProducts) // Saare products aur
 authRouter.get("/products/:id", authController.getProductById) // Kisi ek product ki detail fetch karne ke liye.
 
 
-// authRouter.get("/cart") // Cart ka data dekhne aur naya item add karne ke liye.
+authRouter.get("/cart", authenticationMiddleware(), restrictToAuthenticateUser(), authController.getCartData) // Cart ka data dekhne ke liye
 
 // authRouter.post("/cart/add") // Cart ka data dekhne aur naya item add karne ke liye.
 

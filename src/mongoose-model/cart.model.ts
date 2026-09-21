@@ -6,7 +6,7 @@ export interface ICart extends Document {
   items: [
     {
       productId: Types.ObjectId;
-      qunatity: number;
+      quantity: number;
     },
   ];
   createdAt: Date;
