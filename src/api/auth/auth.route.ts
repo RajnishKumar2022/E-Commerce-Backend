@@ -35,6 +35,6 @@ authRouter.get("/cart", authenticationMiddleware(), restrictToAuthenticateUser()
 
 authRouter.post("/cart/add", authenticationMiddleware(), restrictToAuthenticateUser(), authController.addProductToCart) // Cart ka data dekhne aur naya item add karne ke liye.
 
-// authRouter.post("/orders/place") // Naya order create karne ke liye.
+authRouter.post("/orders/place",authenticationMiddleware(), restrictToAuthenticateUser(), authController.placeOrder) // Naya order create karne ke liye.
 
 // authRouter.get("/orders/user") // Customer ko uske purane orders dikhane ke liye.

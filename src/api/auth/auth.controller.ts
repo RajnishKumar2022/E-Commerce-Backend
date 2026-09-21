@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { signupPayloadModel, signinPayloadModel, addToCartPayloadModel } from "./auth.model.js";
+import { signupPayloadModel, signinPayloadModel, addToCartPayloadModel, placeOrderPayloadModel } from "./auth.model.js";
 import { User } from "../../mongoose-model/user.model.js";
 import {
   generateAccessToken,
@@ -7,6 +7,8 @@ import {
 } from "./auth.middleware.js";
 import { Product } from "../../mongoose-model/product.model.js";
 import { Cart } from "../../mongoose-model/cart.model.js";
+import { Order, PaymentStatus, OrderStatus } from "../../mongoose-model/order.model.js";
+
 
 export interface CustomRequest extends Request {
   user?: {
@@ -414,7 +416,15 @@ async function addProductToCart(req:Request, res: Response) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    const { productId, quantity = 1 } = req.body;
+    // const { productId, quantity = 1 } = req.body;
+
+    const verifiedData = await addToCartPayloadModel.safeParseAsync(req.body)
+
+    if(!verifiedData.success) return res.status(422).json({error: verifiedData.error.issues, success: false, message: "Please fill correct details"})
+  
+    const { productId, quantity = 1 } = verifiedData.data
+
+
     const userId = req.user.userId;
 
     // Validation: Check if input parameters are provided correctly
@@ -483,7 +493,7 @@ async function addProductToCart(req:Request, res: Response) {
         cart.items[existingItemIndex]!.quantity = projectedQuantity;
       } else {
         // Sub-Case B2: Product is new for this cart, safely push it
-        cart.items.push({ productId, quantity });
+        cart.items.push({ productId: product._id, quantity });
       }
 
       // Save the updated existing cart document
@@ -598,6 +608,132 @@ async function addProductToCart(req:Request, res: Response) {
 
 
 
+// AI Generated
+async function placeOrder(req: Request, res: Response) {
+  try {
+    // 1. Authorization Check
+    if (!req.user ) {
+      return res.status(401).json({ success: false, message: "Unauthorized. Please log in." });
+    }
+
+    const buyerId = req.user.userId;
+
+    // 2. Body Payload Validation using Zod Schema
+    const verifiedData = await placeOrderPayloadModel.safeParseAsync(req.body);
+    if (!verifiedData.success) {
+      return res.status(422).json({
+        success: false,
+        message: "Validation failed. Please fill the data accurately.",
+        errors: verifiedData.error.issues,
+      });
+    }
+
+    const { items, shippingAddress, paymentMethod} = verifiedData.data;
+
+    // 3. Inventory & Price Calculation Engine (Server-Side verification)
+    const orderItems: any[] = [];
+    let calculatedTotalAmount = 0;
+
+    for (const item of items) {
+      const product = await Product.findById(item.productId);
+
+      // Check if product exists and is buyable
+      if (!product || !product.isActive) {
+        return res.status(404).json({
+          success: false,
+          message: `Product not found or is currently unavailable.`,
+        });
+      }
+
+      // Check Real-time Stock Boundaries
+      if (product.stock < item.quantity) {
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient stock for '${product.productTitle}'. Only ${product.stock} items left.`,
+        });
+      }
+
+      // Determine correct price (Use discountPrice if available, else standard productPrice)
+      const currentPrice = product.discountPrice && product.discountPrice > 0 
+        ? product.discountPrice 
+        : product.productPrice;
+
+      // Add to final processing array matching your exact Mongoose Schema layout
+      orderItems.push({
+        productId: item.productId,
+        sellerId: item.sellerId,
+        quantity: item.quantity,
+        priceAtPurchase: currentPrice, // Server sets this, preventing price hacking!
+      });
+
+      // Increment Total Billing Amount
+      calculatedTotalAmount += currentPrice * item.quantity;
+    }
+
+    // 4. Payment Simulation Logic
+    // If Cash on Delivery (COD), status is Pending. If online payment integration, handles 'Done'.
+    const initialPaymentStatus =
+      paymentMethod === "cod" ? PaymentStatus.Pending : PaymentStatus.Done;
+
+    // Omit optional address fields when they are undefined. This keeps the
+    // object compatible with Mongoose's exactOptionalPropertyTypes typings.
+    const cleanShippingAddress = {
+      addressLine1: shippingAddress.addressLine1,
+      pinCode: shippingAddress.pinCode,
+      ...(shippingAddress.addressLine2 !== undefined
+        ? { addressLine2: shippingAddress.addressLine2 }
+        : {}),
+      ...(shippingAddress.landmark !== undefined
+        ? { landmark: shippingAddress.landmark }
+        : {}),
+      ...(shippingAddress.houseNumber !== undefined
+        ? { houseNumber: shippingAddress.houseNumber }
+        : {}),
+    };
+
+    // 5. Database Transaction Execution: Create the Order
+    const newOrder = await Order.create({
+      buyerId,
+      items: orderItems,
+      totalAmount: calculatedTotalAmount,
+      shippingAddress: cleanShippingAddress,
+      paymentMethod,
+      paymentStatus: initialPaymentStatus,
+      orderStatus: OrderStatus.Placed,
+    });
+
+    // 6. Deduct Inventories (Stock updating loop)
+    for (const item of orderItems) {
+      await Product.findByIdAndUpdate(item.productId, {
+        $inc: { stock: -item.quantity }, // Decrement stock counts in MongoDB
+      });
+    }
+
+    // 7. Post-Checkout Cart Cleanup
+    // Clear out user's shopping cart items since checkout is completed successfully
+    await Cart.findOneAndUpdate(
+      { userId: buyerId },
+      { $set: { items: [] } } // Sets the array back to empty
+    );
+
+    // 8. Return final success response
+    return res.status(201).json({
+      success: true,
+      message: "Order placed successfully! Your cart has been cleared.",
+      orderId: (newOrder as { _id: unknown })._id,
+      totalAmount: calculatedTotalAmount,
+    });
+
+  } catch (error: any) {
+    console.error("PlaceOrder Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error while processing your purchase request.",
+    });
+  }
+}
+
+
 export {
   registerUser,
   loginUser,
@@ -607,5 +743,6 @@ export {
   getProductById,
   getCartData,
   addProductToCart,
-  // removeOrDecreaseCartItem
+  // removeOrDecreaseCartItem,
+  placeOrder
 };
