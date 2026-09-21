@@ -252,10 +252,62 @@ async function getAllProducts(req: Request, res: Response) {
 //   }
 // }
 
+
+// Below the code is written by me 
+// async function getProductById(req: Request, res: Response) {
+//   try {
+//     const { id } = req.params.id
+//     const product = await Product.findById({id}).populate('sellerId').populate('categoryId')
+//     if(!product) return res.status().json({})
+    
+//     return res.status(200).json({success: true, message: `Successfully fetched product by given ${id}`, product})
+//   } catch (error) {
+//     console.log(error);
+    
+//   }
+// }
+
+// The code which is below is written by AI
+async function getProductById(req: Request, res: Response) {
+  try {
+    // 1. Fixed destructuring mismatch (req.params se id nikalna)
+    const { id } = req.params; 
+
+    // 2. Fixed query format: findById directly expects the raw string/ID, not an object
+    const product = await Product.findById(id)
+      .populate("sellerId", "firstName lastName email") // Optional: Only fetch safe fields
+      .populate("categoryId", "categoryName slug");
+
+    // 3. Fixed Express crash: status() requires an HTTP code (404)
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
+
+    // Success response
+    return res.status(200).json({
+      success: true,
+      message: `Successfully fetched product by given id: ${id}`,
+      product,
+    });
+
+  } catch (error: any) {
+    // 4. Fixed: Catch block must handle errors and return a response to client
+    console.error("GetProductById Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error or invalid product ID format",
+    });
+  }
+}
+
 export { 
   registerUser, 
   loginUser,
   logoutUser,
   getMe,
-  getAllProducts
+  getAllProducts,
+  getProductById
 };
