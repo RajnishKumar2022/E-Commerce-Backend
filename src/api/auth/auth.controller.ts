@@ -6,6 +6,13 @@ import {
   generateRefreshToken,
 } from "./auth.middleware.js";
 
+export interface CustomRequest extends Request {
+  user?: {
+    userId: string;
+  };
+}
+
+
 async function registerUser(req: Request, res: Response) {
   const verifiedData = await signupPayloadModel.safeParseAsync(req.body);
   if (verifiedData.error)
@@ -95,7 +102,7 @@ async function loginUser(req: Request, res: Response) {
       httpOnly: true, // Prevents client-side JS access (XSS defense)
       secure: process.env.NODE_ENV === "production", // Only sends over HTTPS in production
       sameSite: "strict", // Protects against CSRF attacks
-      maxAge: 15 * 60 * 1000, 
+      maxAge: 15 * 60 * 1000,
     });
 
     return res.status(200).json({
@@ -117,4 +124,57 @@ async function loginUser(req: Request, res: Response) {
   }
 }
 
-export { registerUser, loginUser };
+export async function logoutUser(req:Request, res: Response) { // Fixed: CustomRequest
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    // Now correctly reads req.user.userId with full TypeScript support!
+    const user = await User.findById(req.user.userId);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    user.refreshToken = ""; // Alternatively use 'undefined' if schema allows it
+    await user.save();
+
+    res.clearCookie("accessToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
+
+    return res.status(200).json({ success: true, message: "Logged out successfully" });
+  } catch (error: any) {
+    console.error("Logout Error:", error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+}
+
+export async function getMe(req: Request, res: Response) { // Fixed: CustomRequest
+  try { // Added try/catch loop for safety against database dropouts
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const user = await User.findById(req.user.userId).select("-password -refreshToken");
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    return res.status(200).json({ success: true, user });
+  } catch (error: any) {
+    console.error("GetMe Error:", error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+}
+
+export { registerUser, loginUser, logoutUser, getMe };
