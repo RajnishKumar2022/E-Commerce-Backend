@@ -5,13 +5,14 @@ import {
   generateAccessToken,
   generateRefreshToken,
 } from "./auth.middleware.js";
+import { Product } from "../../mongoose-model/product.model.js";
+
 
 export interface CustomRequest extends Request {
   user?: {
     userId: string;
   };
 }
-
 
 async function registerUser(req: Request, res: Response) {
   const verifiedData = await signupPayloadModel.safeParseAsync(req.body);
@@ -124,7 +125,8 @@ async function loginUser(req: Request, res: Response) {
   }
 }
 
-export async function logoutUser(req:Request, res: Response) { // Fixed: CustomRequest
+async function logoutUser(req: Request, res: Response) {
+  // Fixed: CustomRequest
   try {
     if (!req.user) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
@@ -134,7 +136,9 @@ export async function logoutUser(req:Request, res: Response) { // Fixed: CustomR
     const user = await User.findById(req.user.userId);
 
     if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     user.refreshToken = ""; // Alternatively use 'undefined' if schema allows it
@@ -151,30 +155,107 @@ export async function logoutUser(req:Request, res: Response) { // Fixed: CustomR
       sameSite: "strict",
     });
 
-    return res.status(200).json({ success: true, message: "Logged out successfully" });
+    return res
+      .status(200)
+      .json({ success: true, message: "Logged out successfully" });
   } catch (error: any) {
     console.error("Logout Error:", error);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal server error" });
   }
 }
 
-export async function getMe(req: Request, res: Response) { // Fixed: CustomRequest
-  try { // Added try/catch loop for safety against database dropouts
+async function getMe(req: Request, res: Response) {
+  // Fixed: CustomRequest
+  try {
+    // Added try/catch loop for safety against database dropouts
     if (!req.user) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    const user = await User.findById(req.user.userId).select("-password -refreshToken");
+    const user = await User.findById(req.user.userId).select(
+      "-password -refreshToken",
+    );
 
     if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     return res.status(200).json({ success: true, user });
   } catch (error: any) {
     console.error("GetMe Error:", error);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal server error" });
   }
 }
 
-export { registerUser, loginUser, logoutUser, getMe };
+
+// Get all products
+
+async function getAllProducts(req: Request, res: Response) {
+  try {
+    const products = await Product.find({})
+      .populate('sellerId')    // Replaces ID with full Seller object
+      .populate('categoryId'); // Replaces ID with full Category object
+
+    return res.status(200).json({
+      success: true,
+      message: "Successfully fetched all the products",
+      products
+    })
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal server error while fetching Products." });
+  }
+}
+
+// Below the code is AI Generated:-
+
+// 1. Define or import interfaces for your referenced models
+// interface ISeller {
+//   _id: string;
+//   name: string; // Add your actual Seller fields here
+//   email: string;
+// }
+
+// interface ICategory {
+//   _id: string;
+//   categoryName: string; // Add your actual Category fields here
+// }
+
+// export async function getAllProducts(req: Request, res: Response): Promise<Response> {
+//   try {
+//     // 2. Fetch and strictly type the populated properties
+//     const products = await Product.find({})
+//       .populate<{ sellerId: ISeller }>('sellerId')
+//       .populate<{ categoryId: ICategory }>('categoryId')
+//       .lean(); // 3. Recommmended: use .lean() for faster, read-only performance
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Successfully fetched all the products",
+//       products
+//     });
+    
+//   } catch (error) {
+//     console.error("Error fetching products:", error); // console.error is better practice for errors
+//     return res.status(500).json({ 
+//       success: false, 
+//       message: "Internal server error while fetching Products." 
+//     });
+//   }
+// }
+
+export { 
+  registerUser, 
+  loginUser,
+  logoutUser,
+  getMe,
+  getAllProducts
+};

@@ -26,7 +26,8 @@ authRouter.get(
   authController.getMe,
 );
 
-// authRouter.get("/products") // Saare products aur filters load karne ke liye (Home/Listing page par).
+authRouter.get("/products", authController.getAllProducts) // Saare products aur filters load karne ke liye (Home/Listing page par).
+
 // authRouter.get("/products/:id") // Kisi ek product ki detail fetch karne ke liye.
 // authRouter.get("/cart") // Cart ka data dekhne aur naya item add karne ke liye.
 
